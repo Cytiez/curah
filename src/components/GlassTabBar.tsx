@@ -1,4 +1,3 @@
-import { BlurView } from 'expo-blur';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { useEffect, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
@@ -14,12 +13,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SPILL_TRAVEL_MS } from '@/features/checkin/spillTiming';
 import { useMoodStore } from '@/store/useMoodStore';
-import { Chrome, MOOD_COLORS, Radius, Spacing, Typography } from '@/theme';
+import { Chrome, MOOD_COLORS, Spacing, Typography } from '@/theme';
+import { NavbarShapeLazy } from './NavbarShapeLazy';
 
 export const TAB_BAR_HEIGHT = 64;
 const NEUTRAL_TINT = Chrome.surfaceElevated;
 const RAISED_SIZE = 68;
 const RAISED_POKE = 40;
+const CANVAS_HEIGHT = RAISED_POKE + TAB_BAR_HEIGHT;
+const SIDE_PADDING = Spacing.lg;
 
 const TAB_LABEL: Record<string, string> = {
   index: 'Check-in',
@@ -34,13 +36,13 @@ interface FillColors {
 
 /**
  * Floating liquid-glass tab bar, narrower than the screen so it visibly
- * floats rather than spanning edge to edge. Check-in sits in a raised
- * center button (bigger, poking above the pill) with Recap and Circle as
- * smaller icons on either side. The tint reveals left-to-right like liquid
- * filling the glass — driven by the same spillRequest/SPILL_TRAVEL_MS as
- * the traveling drop in PaintSpill, so the fill finishes exactly as the
- * drop visually arrives — and the same reveal plays across the raised
- * button too, so the whole bar reads as one connected glass surface.
+ * floats. The pill and the raised Check-in bump are rendered as ONE
+ * boolean-unioned Skia shape (see NavbarShape/navbarPath) rather than two
+ * overlapping pieces — "kayak di union". The mood tint fills bottom-to-top,
+ * driven by the same spillRequest/SPILL_TRAVEL_MS as the pour stream in
+ * PaintSpill, so the fill finishes exactly as the pour arrives, and rises
+ * into the bump once the level is high enough since both are clipped to the
+ * same real silhouette.
  */
 export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
@@ -54,6 +56,7 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
     to: NEUTRAL_TINT,
   });
   const fillProgress = useSharedValue(0);
+  const raisedFocus = useSharedValue(1);
 
   useEffect(() => {
     if (!spillRequest || spillRequest.id === lastHandledId.current) return;
@@ -69,16 +72,16 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
     prevColorRef.current = nextColor;
   }, [spillRequest, fillProgress]);
 
-  const revealStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: (fillProgress.value - 1) * barWidth }],
-  }));
-
   const onBarLayout = (e: LayoutChangeEvent) => setBarWidth(e.nativeEvent.layout.width);
 
   const indexGlobalIndex = state.routes.findIndex((r) => r.name === 'index');
   const indexRoute = state.routes[indexGlobalIndex];
   const sideRoutes = state.routes.filter((r) => r.name !== 'index');
   const isIndexFocused = state.index === indexGlobalIndex;
+
+  useEffect(() => {
+    raisedFocus.value = withTiming(isIndexFocused ? 1 : 0, { duration: 220 });
+  }, [isIndexFocused, raisedFocus]);
 
   const makeOnPress = (routeKey: string, routeName: string, isFocused: boolean) => () => {
     const event = navigation.emit({ type: 'tabPress', target: routeKey, canPreventDefault: true });
@@ -92,14 +95,20 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
       pointerEvents="box-none"
       style={[styles.wrapper, { bottom: insets.bottom + Spacing.sm }]}
     >
-      <View style={styles.bar} onLayout={onBarLayout}>
-        <BlurView intensity={48} tint="dark" style={StyleSheet.absoluteFill} />
-        <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.from }]} />
-        <Animated.View style={[StyleSheet.absoluteFill, revealStyle]}>
-          <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.to }]} />
-        </Animated.View>
-        <View style={styles.edgeHighlight} pointerEvents="none" />
-        <View style={styles.row}>
+      <View style={styles.canvasBox} onLayout={onBarLayout}>
+        {barWidth > 0 && (
+          <NavbarShapeLazy
+            width={barWidth}
+            pillTop={RAISED_POKE}
+            pillHeight={TAB_BAR_HEIGHT}
+            bumpRadius={RAISED_SIZE / 2}
+            fillColors={fillColors}
+            fillProgress={fillProgress}
+            raisedFocus={raisedFocus}
+          />
+        )}
+
+        <View style={styles.sideRow}>
           {sideRoutes.map((route) => {
             const { options } = descriptors[route.key];
             const isFocused = state.routes[state.index].key === route.key;
@@ -116,17 +125,20 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
             );
           })}
         </View>
-      </View>
 
-      {indexRoute && (
-        <RaisedCheckinButton
-          isFocused={isIndexFocused}
-          fillColors={fillColors}
-          fillProgress={fillProgress}
-          label={TAB_LABEL.index}
-          onPress={makeOnPress(indexRoute.key, indexRoute.name, isIndexFocused)}
-        />
-      )}
+        {indexRoute && (
+          <Pressable
+            onPress={makeOnPress(indexRoute.key, indexRoute.name, isIndexFocused)}
+            accessibilityRole="button"
+            accessibilityState={isIndexFocused ? { selected: true } : {}}
+            accessibilityLabel={TAB_LABEL.index}
+            style={styles.raisedButton}
+            hitSlop={6}
+          >
+            <View style={styles.raisedGlyph} />
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
@@ -173,44 +185,6 @@ function SideTabButton({
   );
 }
 
-function RaisedCheckinButton({
-  isFocused,
-  fillColors,
-  fillProgress,
-  label,
-  onPress,
-}: {
-  isFocused: boolean;
-  fillColors: FillColors;
-  fillProgress: ReturnType<typeof useSharedValue<number>>;
-  label: string;
-  onPress: () => void;
-}) {
-  const revealStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: (fillProgress.value - 1) * RAISED_SIZE }],
-  }));
-
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={isFocused ? { selected: true } : {}}
-      accessibilityLabel={label}
-      style={styles.raisedWrapper}
-      hitSlop={6}
-    >
-      <View style={[styles.raisedCircle, isFocused && styles.raisedCircleActive]}>
-        <BlurView intensity={54} tint="dark" style={StyleSheet.absoluteFill} />
-        <View style={[StyleSheet.absoluteFill, styles.raisedTint, { backgroundColor: fillColors.from }]} />
-        <Animated.View style={[StyleSheet.absoluteFill, revealStyle]}>
-          <View style={[StyleSheet.absoluteFill, styles.raisedTint, { backgroundColor: fillColors.to }]} />
-        </Animated.View>
-        <View style={styles.raisedGlyph} />
-      </View>
-    </Pressable>
-  );
-}
-
 function TabGlyph({ route, active }: { route: string; active: boolean }) {
   const tone = active ? Chrome.text : Chrome.textMuted;
   if (route === 'feed') {
@@ -234,30 +208,21 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
   },
-  bar: {
+  canvasBox: {
     width: '78%',
     maxWidth: 320,
-    height: TAB_BAR_HEIGHT,
-    borderRadius: Radius.pill,
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Chrome.borderStrong,
+    height: CANVAS_HEIGHT,
   },
-  tint: { opacity: 0.32 },
-  edgeHighlight: {
+  sideRow: {
     position: 'absolute',
-    top: 0,
+    top: RAISED_POKE,
     left: 0,
     right: 0,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  row: {
-    flex: 1,
+    height: TAB_BAR_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: SIDE_PADDING,
   },
   tabButton: {
     alignItems: 'center',
@@ -298,27 +263,16 @@ const styles = StyleSheet.create({
   glyphDotOverlap: {
     left: 8,
   },
-  raisedWrapper: {
+  raisedButton: {
     position: 'absolute',
-    top: -RAISED_POKE,
+    top: RAISED_POKE - RAISED_SIZE / 2,
     left: '50%',
     marginLeft: -RAISED_SIZE / 2,
     width: RAISED_SIZE,
     height: RAISED_SIZE,
-  },
-  raisedCircle: {
-    flex: 1,
-    borderRadius: RAISED_SIZE / 2,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: Chrome.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  raisedCircleActive: {
-    borderColor: Chrome.text,
-  },
-  raisedTint: { opacity: 0.34 },
   raisedGlyph: {
     width: 22,
     height: 22,
