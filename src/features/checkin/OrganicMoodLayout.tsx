@@ -1,3 +1,5 @@
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import type { Mood } from '@/features/mood/types';
@@ -13,6 +15,9 @@ import { MoodBlob } from './MoodBlob';
  */
 const DESIGN_W = 400;
 const DESIGN_H = 540;
+/** Max random offset (px, design space) applied on top of each blob's base
+ * position every time this screen is focused — the base itself never moves. */
+const JITTER_RANGE = 26;
 
 interface BlobSpec {
   mood: Mood;
@@ -33,6 +38,10 @@ const LAYOUT: BlobSpec[] = [
   { mood: 'sedih', x: 190, y: 320, size: 210 },
 ];
 
+function randomJitter() {
+  return (Math.random() * 2 - 1) * JITTER_RANGE;
+}
+
 export interface MoodTapInfo {
   mood: Mood;
   pageX: number;
@@ -45,14 +54,25 @@ interface OrganicMoodLayoutProps {
 }
 
 export function OrganicMoodLayout({ onPickMood }: OrganicMoodLayoutProps) {
+  const [jitters, setJitters] = useState(() => LAYOUT.map(() => ({ dx: 0, dy: 0 })));
+
+  // Re-rolls each blob's offset from its base position every time the
+  // Check-in tab is opened (including the first time) — the base layout
+  // itself is untouched, only nudged left/right/up/down around it.
+  useFocusEffect(
+    useCallback(() => {
+      setJitters(LAYOUT.map(() => ({ dx: randomJitter(), dy: randomJitter() })));
+    }, []),
+  );
+
   return (
     <View style={styles.container}>
       {LAYOUT.map((spec, index) => (
         <MoodBlob
           key={spec.mood}
           mood={spec.mood}
-          x={spec.x}
-          y={spec.y}
+          x={spec.x + jitters[index].dx}
+          y={spec.y + jitters[index].dy}
           size={spec.size}
           designWidth={DESIGN_W}
           designHeight={DESIGN_H}

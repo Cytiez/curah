@@ -9,6 +9,7 @@ import Animated, {
   withDelay,
   withRepeat,
   withSequence,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -18,7 +19,8 @@ import { LiquidBlobLazy } from './LiquidBlobLazy';
 
 interface MoodBlobProps {
   mood: Mood;
-  /** Design-space position/size (see OrganicMoodLayout's DESIGN_W/DESIGN_H). */
+  /** Design-space position/size (see OrganicMoodLayout's DESIGN_W/DESIGN_H).
+   * Changes (e.g. the per-focus jitter) animate smoothly rather than snapping. */
   x: number;
   y: number;
   size: number;
@@ -50,6 +52,8 @@ export function MoodBlob({
 }: MoodBlobProps) {
   const drift = useSharedValue(0);
   const pressed = useSharedValue(0);
+  const posX = useSharedValue(x);
+  const posY = useSharedValue(y);
 
   useEffect(() => {
     const duration = 3400 + index * 300;
@@ -67,6 +71,12 @@ export function MoodBlob({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
+  useEffect(() => {
+    posX.value = withSpring(x, { damping: 16, stiffness: 90, mass: 1 });
+    posY.value = withSpring(y, { damping: 16, stiffness: 90, mass: 1 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [x, y]);
+
   const animatedStyle = useAnimatedStyle(() => {
     const pressScale = interpolate(pressed.value, [0, 1], [1, 0.94]);
     const translateY = interpolate(drift.value, [0, 1], [0, -4]);
@@ -76,16 +86,14 @@ export function MoodBlob({
     };
   });
 
+  const wrapperStyle = useAnimatedStyle(() => ({
+    left: `${(posX.value / designWidth) * 100}%`,
+    top: `${(posY.value / designHeight) * 100}%`,
+  }));
+
   return (
-    <View
-      style={[
-        styles.wrapper,
-        {
-          left: `${(x / designWidth) * 100}%`,
-          top: `${(y / designHeight) * 100}%`,
-          width: `${(size / designWidth) * 100}%`,
-        },
-      ]}
+    <Animated.View
+      style={[styles.wrapper, { width: `${(size / designWidth) * 100}%` }, wrapperStyle]}
     >
       <Pressable
         accessibilityRole="button"
@@ -106,7 +114,7 @@ export function MoodBlob({
           <LiquidBlobLazy color={MOOD_COLORS[mood].base} seed={index * 1.7} />
         </Animated.View>
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }
 
