@@ -1,8 +1,9 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import type { MoodLog } from '@/features/mood/types';
-import { Chrome, Spacing, Typography } from '@/theme';
+import { MOOD_LABEL, type MoodLog } from '@/features/mood/types';
+import { Spacing } from '@/theme';
 import { Avatar } from './Avatar';
+import { MoodBar } from './MoodBar';
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -16,15 +17,22 @@ interface FeedRowProps {
   name: string;
 }
 
-/** One check-in event: avatar+mood ring, name, and time. No caption, no counts. */
+/**
+ * One check-in event: only a profile picture and a mood-color bar — no
+ * name, no time, no caption, no counts (per brief: "hanya foto profil dan
+ * warnanya aja"). Order in the list still carries the timeline meaning; an
+ * accessibilityLabel keeps who/what/when available to screen readers even
+ * though nothing is shown visually.
+ */
 export function FeedRow({ log, name }: FeedRowProps) {
   return (
-    <View style={styles.row}>
-      <Avatar name={name} mood={log.mood} />
-      <View style={styles.meta}>
-        <Text style={styles.name}>{name}</Text>
-        <Text style={styles.time}>{formatTime(log.createdAt)}</Text>
-      </View>
+    <View
+      style={styles.row}
+      accessible
+      accessibilityLabel={`${name}, ${MOOD_LABEL[log.mood]}, ${formatTime(log.createdAt)}`}
+    >
+      <Avatar name={name} />
+      <MoodBar mood={log.mood} />
     </View>
   );
 }
@@ -34,18 +42,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  meta: {
-    gap: 2,
-  },
-  name: {
-    ...Typography.body,
-    color: Chrome.text,
-    fontWeight: '600',
-  },
-  time: {
-    ...Typography.caption,
-    color: Chrome.textMuted,
+    paddingVertical: Spacing.xs,
   },
 });
