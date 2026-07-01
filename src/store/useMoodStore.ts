@@ -1,5 +1,5 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
-import { useShallow } from 'zustand/react/shallow';
 
 import { buildFeedTimeline, stratifyDayLogs } from '@/features/mood/aggregation';
 import { makeMockLogs } from '@/features/mood/mockData';
@@ -50,13 +50,19 @@ export const useMoodStore = create<MoodState>((set, get) => ({
   setSharingDefault: (visibility) => set({ sharingDefault: visibility }),
 }));
 
-const selectTodayBands = (state: MoodState) => stratifyDayLogs(state.logs);
-const selectFeedTimeline = (state: MoodState) => buildFeedTimeline(state.logs);
+const selectLogs = (state: MoodState) => state.logs;
 
-// These selectors derive a NEW array on every call. Zustand compares
-// selector results by reference by default, so calling them directly would
-// re-render (and thus re-derive) on every store update, forever. useShallow
-// makes the comparison element-wise instead, so exposing them only as hooks
-// keeps that footgun out of consuming components.
-export const useTodayBands = () => useMoodStore(useShallow(selectTodayBands));
-export const useFeedTimeline = () => useMoodStore(useShallow(selectFeedTimeline));
+// stratifyDayLogs/buildFeedTimeline build fresh wrapper objects on every
+// call, so even a shallow-compared Zustand selector would see "new" output
+// every render and loop forever. Deriving them in useMemo, keyed off the
+// store's raw `logs` reference (which zustand only ever changes on a real
+// addLog), avoids that: recomputation only happens when logs actually change.
+export const useTodayBands = () => {
+  const logs = useMoodStore(selectLogs);
+  return useMemo(() => stratifyDayLogs(logs), [logs]);
+};
+
+export const useFeedTimeline = () => {
+  const logs = useMoodStore(selectLogs);
+  return useMemo(() => buildFeedTimeline(logs), [logs]);
+};
