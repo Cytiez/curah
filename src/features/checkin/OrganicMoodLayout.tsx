@@ -4,31 +4,33 @@ import type { Mood } from '@/features/mood/types';
 import { MoodBlob } from './MoodBlob';
 
 /**
- * Design-space dimensions, taken from the Figma wireframe's "Organic Mood
- * Layout" container (Page 4, node 18:72: 340x380 px holding six 120x120
- * tiles). Positions are kept in this space and converted to percentages so
- * the layout scales to any screen width while preserving the organic,
- * non-grid arrangement.
+ * Design-space dimensions. Blobs are deliberately large and overlapping —
+ * "seperti cat acak-acakan" (like messy scattered paint) rather than neat
+ * evenly-sized tiles — so both the design space and per-blob sizes are
+ * bigger than the original Figma reference. Positions are kept in this
+ * space and converted to percentages so the layout scales to any screen
+ * width while preserving the organic, non-grid, overlapping arrangement.
  */
-const DESIGN_W = 340;
-const DESIGN_H = 380;
-const BLOB_SIZE = 120;
+const DESIGN_W = 400;
+const DESIGN_H = 540;
 
 interface BlobSpec {
   mood: Mood;
   x: number;
   y: number;
+  size: number;
 }
 
 // Wireframe used "Excited"/"Lelah" placeholders; mapped here to the official
-// token moods (Senang/Netral) per the approved plan.
+// token moods (Senang/Netral) per the approved plan. Sizes vary per blob for
+// a scattered, spilled-paint feel rather than uniform tiles.
 const LAYOUT: BlobSpec[] = [
-  { mood: 'marah', x: 20, y: 10 },
-  { mood: 'senang', x: 210, y: 0 },
-  { mood: 'netral', x: 220, y: 140 },
-  { mood: 'cemas', x: 110, y: 130 },
-  { mood: 'tenang', x: 10, y: 250 },
-  { mood: 'sedih', x: 210, y: 240 },
+  { mood: 'marah', x: 10, y: 10, size: 195 },
+  { mood: 'senang', x: 195, y: 0, size: 185 },
+  { mood: 'cemas', x: 80, y: 150, size: 225 },
+  { mood: 'netral', x: 230, y: 190, size: 175 },
+  { mood: 'tenang', x: 0, y: 300, size: 200 },
+  { mood: 'sedih', x: 190, y: 320, size: 210 },
 ];
 
 export interface MoodTapInfo {
@@ -51,7 +53,7 @@ export function OrganicMoodLayout({ onPickMood }: OrganicMoodLayoutProps) {
           mood={spec.mood}
           x={spec.x}
           y={spec.y}
-          size={BLOB_SIZE}
+          size={spec.size}
           designWidth={DESIGN_W}
           designHeight={DESIGN_H}
           index={index}
@@ -68,7 +70,7 @@ const styles = StyleSheet.create({
   container: {
     alignSelf: 'center',
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 400,
     aspectRatio: DESIGN_W / DESIGN_H,
   },
 });
