@@ -12,8 +12,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { MOOD_COLORS } from '@/theme';
 import { MOOD_LABEL, type Mood } from '@/features/mood/types';
+import { MOOD_COLORS } from '@/theme';
+import { LiquidBlobLazy } from './LiquidBlobLazy';
 
 interface MoodBlobProps {
   mood: Mood;
@@ -23,16 +24,19 @@ interface MoodBlobProps {
   size: number;
   designWidth: number;
   designHeight: number;
-  /** Stagger index so blobs don't breathe in lockstep. */
+  /** Stagger index/seed so blobs don't wobble or drift in lockstep. */
   index: number;
   onPress: (mood: Mood, layout: { pageX: number; pageY: number; size: number }) => void;
 }
 
 /**
- * A single color-only mood tile. Breathes gently in place (scale + a few px
- * of drift) so the layout feels alive without shifting each tile's home
- * position. Tap fires a light haptic (handled by the caller) and reports the
- * blob's on-screen location so the paint-spill overlay can originate there.
+ * A single color-only mood tile, rendered as a continuously-morphing organic
+ * liquid shape (see LiquidBlob) rather than a static circle. The wrapper
+ * only adds a slow, subtle overall drift on top of that internal wobble —
+ * a little movement in place, not a shift away from the tile's home
+ * position. Tap fires a light haptic (handled by the caller) and reports
+ * the blob's on-screen location so the paint-spill overlay can originate
+ * there.
  */
 export function MoodBlob({
   mood,
@@ -44,13 +48,13 @@ export function MoodBlob({
   index,
   onPress,
 }: MoodBlobProps) {
-  const breathe = useSharedValue(0);
+  const drift = useSharedValue(0);
   const pressed = useSharedValue(0);
 
   useEffect(() => {
-    const duration = 2800 + index * 260;
-    breathe.value = withDelay(
-      index * 180,
+    const duration = 3400 + index * 300;
+    drift.value = withDelay(
+      index * 220,
       withRepeat(
         withSequence(
           withTiming(1, { duration, easing: Easing.inOut(Easing.sin) }),
@@ -64,16 +68,11 @@ export function MoodBlob({
   }, [index]);
 
   const animatedStyle = useAnimatedStyle(() => {
-    const breatheScale = interpolate(breathe.value, [0, 1], [1, 1.035]);
     const pressScale = interpolate(pressed.value, [0, 1], [1, 0.94]);
-    const translateY = interpolate(breathe.value, [0, 1], [0, -3]);
-    const translateX = interpolate(breathe.value, [0, 1], [0, index % 2 === 0 ? 2 : -2]);
+    const translateY = interpolate(drift.value, [0, 1], [0, -4]);
+    const translateX = interpolate(drift.value, [0, 1], [0, index % 2 === 0 ? 3 : -3]);
     return {
-      transform: [
-        { translateX },
-        { translateY },
-        { scale: breatheScale * pressScale },
-      ],
+      transform: [{ translateX }, { translateY }, { scale: pressScale }],
     };
   });
 
@@ -103,9 +102,9 @@ export function MoodBlob({
         }}
         style={styles.pressable}
       >
-        <Animated.View
-          style={[styles.blob, { backgroundColor: MOOD_COLORS[mood].base }, animatedStyle]}
-        />
+        <Animated.View style={[styles.blob, animatedStyle]}>
+          <LiquidBlobLazy color={MOOD_COLORS[mood].base} seed={index * 1.7} />
+        </Animated.View>
       </Pressable>
     </View>
   );
@@ -121,6 +120,5 @@ const styles = StyleSheet.create({
   },
   blob: {
     flex: 1,
-    borderRadius: 9999,
   },
 });
