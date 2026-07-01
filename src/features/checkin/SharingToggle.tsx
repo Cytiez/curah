@@ -87,10 +87,14 @@ function Option({
 
 const styles = StyleSheet.create({
   container: {
-    gap: Spacing.sm,
+    alignSelf: 'center',
+    width: '56%',
+    maxWidth: 190,
+    gap: 4,
   },
   caption: {
     ...Typography.label,
+    fontSize: 10,
     color: Chrome.textMuted,
     textAlign: 'center',
   },
@@ -112,13 +116,13 @@ const styles = StyleSheet.create({
   },
   option: {
     flex: 1,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 5,
     borderRadius: Radius.pill,
     alignItems: 'center',
   },
   optionLabel: {
     ...Typography.body,
-    fontSize: 14,
+    fontSize: 11,
     color: Chrome.textMuted,
   },
   optionLabelActive: {
