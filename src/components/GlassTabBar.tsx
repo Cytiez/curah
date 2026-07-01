@@ -3,7 +3,7 @@ import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { useEffect, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SPILL_TRAVEL_MS } from '@/features/checkin/spillTiming';
@@ -24,7 +24,9 @@ const TAB_LABEL: Record<string, string> = {
  * the tint reveals left-to-right like liquid filling the bar — driven by
  * the same spillRequest and SPILL_TRAVEL_MS as the traveling drop in
  * PaintSpill, so the fill finishes exactly as the drop visually arrives.
- * Holds the filled color until the next mood is logged.
+ * Holds the filled color until the next mood is logged. A sliding highlight
+ * tracks the focused tab so switching pages reads as continuous motion
+ * rather than an instant cut.
  */
 export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
@@ -38,6 +40,7 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
     to: NEUTRAL_TINT,
   });
   const fillProgress = useSharedValue(0);
+  const indicatorX = useSharedValue(0);
 
   useEffect(() => {
     if (!spillRequest || spillRequest.id === lastHandledId.current) return;
@@ -53,8 +56,23 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
     prevColorRef.current = nextColor;
   }, [spillRequest, fillProgress]);
 
+  useEffect(() => {
+    if (barWidth === 0) return;
+    const slotWidth = barWidth / state.routes.length;
+    indicatorX.value = withSpring(state.index * slotWidth, {
+      damping: 20,
+      stiffness: 200,
+      mass: 0.6,
+    });
+  }, [state.index, barWidth, state.routes.length, indicatorX]);
+
   const revealStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: (fillProgress.value - 1) * barWidth }],
+  }));
+
+  const indicatorStyle = useAnimatedStyle(() => ({
+    width: barWidth / state.routes.length,
+    transform: [{ translateX: indicatorX.value }],
   }));
 
   const onBarLayout = (e: LayoutChangeEvent) => setBarWidth(e.nativeEvent.layout.width);
@@ -71,6 +89,7 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
           <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.to }]} />
         </Animated.View>
         <View style={styles.edgeHighlight} pointerEvents="none" />
+        {barWidth > 0 && <Animated.View style={[styles.indicator, indicatorStyle]} />}
         <View style={styles.row}>
           {state.routes.map((route, index) => {
             const { options } = descriptors[route.key];
@@ -150,6 +169,14 @@ const styles = StyleSheet.create({
     right: 0,
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  indicator: {
+    position: 'absolute',
+    top: 6,
+    bottom: 6,
+    left: 0,
+    borderRadius: Radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.10)',
   },
   row: {
     flex: 1,
