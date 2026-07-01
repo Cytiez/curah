@@ -18,7 +18,7 @@ export default function CheckinScreen() {
   const handlePickMood = useCallback(
     (info: MoodTapInfo) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      addLog(info.mood);
+      addLog(info.mood, { x: info.pageX, y: info.pageY });
     },
     [addLog],
   );

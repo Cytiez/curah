@@ -4,13 +4,23 @@ import { buildFeedTimeline, stratifyDayLogs } from '@/features/mood/aggregation'
 import { makeMockLogs } from '@/features/mood/mockData';
 import type { Mood, MoodLog, Visibility } from '@/features/mood/types';
 
+export interface SpillRequest {
+  id: number;
+  mood: Mood;
+  originX: number;
+  originY: number;
+}
+
 interface MoodState {
   logs: MoodLog[];
   /** Mood of the most recent log (any visibility). Drives the navbar tint. */
   currentMood: Mood | null;
   /** Sticky sharing choice for the next log; anti-dark-pattern default is private. */
   sharingDefault: Visibility;
-  addLog: (mood: Mood) => void;
+  /** Ephemeral trigger for the paint-spill overlay; cleared once it finishes playing. */
+  spillRequest: SpillRequest | null;
+  addLog: (mood: Mood, origin: { x: number; y: number }) => void;
+  clearSpillRequest: () => void;
   setSharingDefault: (visibility: Visibility) => void;
 }
 
@@ -20,7 +30,8 @@ export const useMoodStore = create<MoodState>((set, get) => ({
   logs: makeMockLogs(),
   currentMood: null,
   sharingDefault: 'private',
-  addLog: (mood) => {
+  spillRequest: null,
+  addLog: (mood, origin) => {
     const log: MoodLog = {
       id: `local-${Date.now()}-${idCounter++}`,
       userId: 'me',
@@ -28,8 +39,13 @@ export const useMoodStore = create<MoodState>((set, get) => ({
       visibility: get().sharingDefault,
       createdAt: new Date().toISOString(),
     };
-    set((state) => ({ logs: [...state.logs, log], currentMood: mood }));
+    set((state) => ({
+      logs: [...state.logs, log],
+      currentMood: mood,
+      spillRequest: { id: idCounter, mood, originX: origin.x, originY: origin.y },
+    }));
   },
+  clearSpillRequest: () => set({ spillRequest: null }),
   setSharingDefault: (visibility) => set({ sharingDefault: visibility }),
 }));
 
