@@ -1,3 +1,4 @@
+import { BlurView } from 'expo-blur';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { useEffect, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
@@ -13,14 +14,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SPILL_TRAVEL_MS } from '@/features/checkin/spillTiming';
 import { useMoodStore } from '@/store/useMoodStore';
-import { Chrome, MOOD_COLORS, Spacing, Typography } from '@/theme';
-import { NavbarShapeLazy } from './NavbarShapeLazy';
+import { Chrome, MOOD_COLORS, Radius, Spacing, Typography } from '@/theme';
 
 export const TAB_BAR_HEIGHT = 64;
+export const RAISED_SIZE = 60;
+export const RAISED_GAP = 10;
+/** Total floating-nav footprint (raised button + gap + pill) screens should
+ * pad their bottom content by, so nothing sits under the detached button. */
+export const NAVBAR_CLEARANCE = RAISED_SIZE + RAISED_GAP + TAB_BAR_HEIGHT;
 const NEUTRAL_TINT = Chrome.surfaceElevated;
-const RAISED_SIZE = 68;
-const RAISED_POKE = 40;
-const CANVAS_HEIGHT = RAISED_POKE + TAB_BAR_HEIGHT;
 const SIDE_PADDING = Spacing.lg;
 
 const TAB_LABEL: Record<string, string> = {
@@ -35,14 +37,16 @@ interface FillColors {
 }
 
 /**
- * Floating liquid-glass tab bar, narrower than the screen so it visibly
- * floats. The pill and the raised Check-in bump are rendered as ONE
- * boolean-unioned Skia shape (see NavbarShape/navbarPath) rather than two
- * overlapping pieces — "kayak di union". The mood tint fills bottom-to-top,
- * driven by the same spillRequest/SPILL_TRAVEL_MS as the pour stream in
- * PaintSpill, so the fill finishes exactly as the pour arrives, and rises
- * into the bump once the level is high enough since both are clipped to the
- * same real silhouette.
+ * Floating liquid-glass tab bar: a pill (Recap + Circle) with the Check-in
+ * button as its own DETACHED floating circle above it, not merged into one
+ * shape. Earlier attempts tried a true boolean-unioned Skia shape ("kayak
+ * union") but that meant losing real backdrop blur (Skia can't be masked by
+ * expo-blur) and looked worse in practice. Checked against real iOS 26
+ * guidance in the meantime: Apple's own floating-pill tab bar keeps its
+ * primary action button as a separate detached glass piece next to/above
+ * the bar rather than merging it in — so this detached layout isn't just a
+ * fallback, it's the proven pattern. Both pieces share the same
+ * spillRequest-driven fill, revealing bottom-to-top in sync.
  */
 export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
@@ -56,7 +60,6 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
     to: NEUTRAL_TINT,
   });
   const fillProgress = useSharedValue(0);
-  const raisedFocus = useSharedValue(1);
 
   useEffect(() => {
     if (!spillRequest || spillRequest.id === lastHandledId.current) return;
@@ -72,16 +75,19 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
     prevColorRef.current = nextColor;
   }, [spillRequest, fillProgress]);
 
+  const pillRevealStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: (1 - fillProgress.value) * TAB_BAR_HEIGHT }],
+  }));
+  const raisedRevealStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: (1 - fillProgress.value) * RAISED_SIZE }],
+  }));
+
   const onBarLayout = (e: LayoutChangeEvent) => setBarWidth(e.nativeEvent.layout.width);
 
   const indexGlobalIndex = state.routes.findIndex((r) => r.name === 'index');
   const indexRoute = state.routes[indexGlobalIndex];
   const sideRoutes = state.routes.filter((r) => r.name !== 'index');
   const isIndexFocused = state.index === indexGlobalIndex;
-
-  useEffect(() => {
-    raisedFocus.value = withTiming(isIndexFocused ? 1 : 0, { duration: 220 });
-  }, [isIndexFocused, raisedFocus]);
 
   const makeOnPress = (routeKey: string, routeName: string, isFocused: boolean) => () => {
     const event = navigation.emit({ type: 'tabPress', target: routeKey, canPreventDefault: true });
@@ -95,19 +101,31 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
       pointerEvents="box-none"
       style={[styles.wrapper, { bottom: insets.bottom + Spacing.sm }]}
     >
-      <View style={styles.canvasBox} onLayout={onBarLayout}>
-        {barWidth > 0 && (
-          <NavbarShapeLazy
-            width={barWidth}
-            pillTop={RAISED_POKE}
-            pillHeight={TAB_BAR_HEIGHT}
-            bumpRadius={RAISED_SIZE / 2}
-            fillColors={fillColors}
-            fillProgress={fillProgress}
-            raisedFocus={raisedFocus}
-          />
-        )}
+      {indexRoute && (
+        <Pressable
+          onPress={makeOnPress(indexRoute.key, indexRoute.name, isIndexFocused)}
+          accessibilityRole="button"
+          accessibilityState={isIndexFocused ? { selected: true } : {}}
+          accessibilityLabel={TAB_LABEL.index}
+          style={[styles.raisedButton, isIndexFocused && styles.raisedButtonActive]}
+          hitSlop={6}
+        >
+          <BlurView intensity={54} tint="dark" style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.from }]} />
+          <Animated.View style={[StyleSheet.absoluteFill, raisedRevealStyle]}>
+            <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.to }]} />
+          </Animated.View>
+          <View style={styles.raisedGlyph} />
+        </Pressable>
+      )}
 
+      <View style={styles.bar} onLayout={onBarLayout}>
+        <BlurView intensity={48} tint="dark" style={StyleSheet.absoluteFill} />
+        <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.from }]} />
+        <Animated.View style={[StyleSheet.absoluteFill, pillRevealStyle]}>
+          <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.to }]} />
+        </Animated.View>
+        <View style={styles.edgeHighlight} pointerEvents="none" />
         <View style={styles.sideRow}>
           {sideRoutes.map((route) => {
             const { options } = descriptors[route.key];
@@ -125,19 +143,6 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
             );
           })}
         </View>
-
-        {indexRoute && (
-          <Pressable
-            onPress={makeOnPress(indexRoute.key, indexRoute.name, isIndexFocused)}
-            accessibilityRole="button"
-            accessibilityState={isIndexFocused ? { selected: true } : {}}
-            accessibilityLabel={TAB_LABEL.index}
-            style={styles.raisedButton}
-            hitSlop={6}
-          >
-            <View style={styles.raisedGlyph} />
-          </Pressable>
-        )}
       </View>
     </View>
   );
@@ -208,17 +213,26 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
   },
-  canvasBox: {
+  bar: {
     width: '78%',
     maxWidth: 320,
-    height: CANVAS_HEIGHT,
+    height: TAB_BAR_HEIGHT,
+    borderRadius: Radius.pill,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Chrome.borderStrong,
   },
-  sideRow: {
+  tint: { opacity: 0.32 },
+  edgeHighlight: {
     position: 'absolute',
-    top: RAISED_POKE,
+    top: 0,
     left: 0,
     right: 0,
-    height: TAB_BAR_HEIGHT,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  sideRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -264,19 +278,23 @@ const styles = StyleSheet.create({
     left: 8,
   },
   raisedButton: {
-    position: 'absolute',
-    top: RAISED_POKE - RAISED_SIZE / 2,
-    left: '50%',
-    marginLeft: -RAISED_SIZE / 2,
     width: RAISED_SIZE,
     height: RAISED_SIZE,
+    borderRadius: RAISED_SIZE / 2,
+    overflow: 'hidden',
+    marginBottom: RAISED_GAP,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Chrome.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  raisedButtonActive: {
+    borderColor: Chrome.text,
+  },
   raisedGlyph: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: Chrome.text,
   },
 });

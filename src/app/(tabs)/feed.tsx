@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { TAB_BAR_HEIGHT } from '@/components/GlassTabBar';
+import { NAVBAR_CLEARANCE } from '@/components/GlassTabBar';
 import { FeedTimeline } from '@/features/feed/FeedTimeline';
 import { Chrome, Spacing, Typography } from '@/theme';
 
@@ -12,7 +12,7 @@ export default function FeedScreen() {
     <View
       style={[
         styles.container,
-        { paddingTop: insets.top + Spacing.lg, paddingBottom: TAB_BAR_HEIGHT + Spacing.xl },
+        { paddingTop: insets.top + Spacing.lg, paddingBottom: NAVBAR_CLEARANCE + Spacing.xl },
       ]}
     >
       <View style={styles.header}>

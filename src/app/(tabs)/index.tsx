@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { TAB_BAR_HEIGHT } from '@/components/GlassTabBar';
+import { NAVBAR_CLEARANCE } from '@/components/GlassTabBar';
 import { OrganicMoodLayout, type MoodTapInfo } from '@/features/checkin/OrganicMoodLayout';
 import { SharingToggle } from '@/features/checkin/SharingToggle';
 import { useMoodStore } from '@/store/useMoodStore';
@@ -27,7 +27,7 @@ export default function CheckinScreen() {
     <View
       style={[
         styles.container,
-        { paddingTop: insets.top + Spacing.lg, paddingBottom: TAB_BAR_HEIGHT + Spacing.xl },
+        { paddingTop: insets.top + Spacing.lg, paddingBottom: NAVBAR_CLEARANCE + Spacing.xl },
       ]}
     >
       <View style={styles.header}>
