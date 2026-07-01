@@ -52,6 +52,16 @@ export function LiquidFill({ width, height, borderRadius, color, opacity, progre
   });
 
   const liquidPath = useDerivedValue(() => {
+    // Once fully filled, lock to a plain solid rect instead of the wavy
+    // path — the wave's crests/troughs oscillate above and below the
+    // nominal top edge, and at progress 1 that trough dips below the
+    // container's top, leaving a thin gap where the blurred background
+    // peeked through even though the bar reads as "done".
+    if (progress.value >= 0.999) {
+      const path = Skia.Path.Make();
+      path.addRect(Skia.XYWHRect(0, 0, width, height));
+      return path;
+    }
     const topY = height * (1 - progress.value);
     return buildLiquidLayerPath(width, topY, height, wavePhase.value);
   });
