@@ -4,13 +4,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_HEIGHT } from '@/components/GlassTabBar';
-import { LiquidGlass } from '@/features/recap/LiquidGlass';
-import { useTodayBands } from '@/store/useMoodStore';
+import { RecapGlassLazy } from '@/features/recap/RecapGlassLazy';
+import { useMoodShares } from '@/store/useMoodStore';
 import { Chrome, Radius, Spacing, Typography } from '@/theme';
 
 export default function RecapScreen() {
   const insets = useSafeAreaInsets();
-  const bands = useTodayBands();
+  const shares = useMoodShares();
   const [replayKey, setReplayKey] = useState(0);
 
   const handleReplay = useCallback(() => {
@@ -31,7 +31,9 @@ export default function RecapScreen() {
       </View>
 
       <View style={styles.glassArea}>
-        <LiquidGlass bands={bands} replayKey={replayKey} />
+        <View style={styles.glassBox}>
+          <RecapGlassLazy shares={shares} replayKey={replayKey} />
+        </View>
       </View>
 
       <Pressable onPress={handleReplay} style={styles.replayButton} accessibilityRole="button">
@@ -62,6 +64,12 @@ const styles = StyleSheet.create({
   glassArea: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  glassBox: {
+    width: '82%',
+    maxWidth: 300,
+    aspectRatio: 0.72,
   },
   replayButton: {
     alignSelf: 'center',

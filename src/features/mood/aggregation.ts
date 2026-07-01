@@ -1,4 +1,4 @@
-import type { MoodLog } from './types';
+import { MOODS, type Mood, type MoodLog } from './types';
 
 /**
  * Pure mood-aggregation logic. No React / RN imports so it stays trivially
@@ -76,6 +76,20 @@ export function latestSharedPerUser(logs: MoodLog[]): Record<string, MoodLog> {
     }
   }
   return out;
+}
+
+/**
+ * Today's log count per mood (all six moods always present, 0 if unlogged),
+ * for the Recap glass's liquid layers. Order follows the fixed MOODS order,
+ * not chronology — the glass shows proportion, not a timeline.
+ */
+export function moodCountsForToday(logs: MoodLog[], now: Date = new Date()): Record<Mood, number> {
+  const counts = Object.fromEntries(MOODS.map((m) => [m, 0])) as Record<Mood, number>;
+  for (const log of logs) {
+    if (!isSameDay(new Date(log.createdAt), now)) continue;
+    counts[log.mood] += 1;
+  }
+  return counts;
 }
 
 function toTime(log: MoodLog): number {

@@ -1,10 +1,11 @@
 import {
   buildFeedTimeline,
   latestSharedPerUser,
+  moodCountsForToday,
   periodOfDay,
   stratifyDayLogs,
 } from '@/features/mood/aggregation';
-import type { MoodLog } from '@/features/mood/types';
+import { MOODS, type MoodLog } from '@/features/mood/types';
 
 const DAY = { y: 2026, m: 6, d: 1 }; // 1 Jul 2026 (month is 0-indexed)
 
@@ -103,5 +104,34 @@ describe('latestSharedPerUser', () => {
     const latest = latestSharedPerUser(logs);
     expect(latest.ayu.id).toBe('a2');
     expect(latest.bima.id).toBe('b1');
+  });
+});
+
+describe('moodCountsForToday', () => {
+  it('includes every mood at 0 when unlogged, and counts multiples correctly', () => {
+    const logs = [
+      log({ hour: 8, mood: 'senang' }),
+      log({ hour: 12, mood: 'senang' }),
+      log({ hour: 16, mood: 'marah' }),
+    ];
+    const counts = moodCountsForToday(logs, NOW);
+    expect(Object.keys(counts).sort()).toEqual([...MOODS].sort());
+    expect(counts.senang).toBe(2);
+    expect(counts.marah).toBe(1);
+    expect(counts.tenang).toBe(0);
+    expect(counts.netral).toBe(0);
+    expect(counts.sedih).toBe(0);
+    expect(counts.cemas).toBe(0);
+  });
+
+  it('excludes logs from other days', () => {
+    const today = log({ hour: 9, mood: 'senang' });
+    const yesterday: MoodLog = {
+      ...log({ hour: 9, mood: 'marah', id: 'y' }),
+      createdAt: new Date(DAY.y, DAY.m, DAY.d - 1, 9, 0).toISOString(),
+    };
+    const counts = moodCountsForToday([today, yesterday], NOW);
+    expect(counts.senang).toBe(1);
+    expect(counts.marah).toBe(0);
   });
 });

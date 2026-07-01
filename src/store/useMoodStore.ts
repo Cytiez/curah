@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
 
-import { buildFeedTimeline, stratifyDayLogs } from '@/features/mood/aggregation';
+import { buildFeedTimeline, moodCountsForToday } from '@/features/mood/aggregation';
 import { makeMockLogs } from '@/features/mood/mockData';
 import type { Mood, MoodLog, Visibility } from '@/features/mood/types';
 
@@ -52,14 +52,14 @@ export const useMoodStore = create<MoodState>((set, get) => ({
 
 const selectLogs = (state: MoodState) => state.logs;
 
-// stratifyDayLogs/buildFeedTimeline build fresh wrapper objects on every
+// moodCountsForToday/buildFeedTimeline build fresh wrapper objects on every
 // call, so even a shallow-compared Zustand selector would see "new" output
 // every render and loop forever. Deriving them in useMemo, keyed off the
 // store's raw `logs` reference (which zustand only ever changes on a real
 // addLog), avoids that: recomputation only happens when logs actually change.
-export const useTodayBands = () => {
+export const useMoodShares = () => {
   const logs = useMoodStore(selectLogs);
-  return useMemo(() => stratifyDayLogs(logs), [logs]);
+  return useMemo(() => moodCountsForToday(logs), [logs]);
 };
 
 export const useFeedTimeline = () => {
