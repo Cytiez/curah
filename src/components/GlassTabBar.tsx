@@ -1,16 +1,12 @@
 import { BlurView } from 'expo-blur';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { useEffect, useRef, useState } from 'react';
+import type { LayoutChangeEvent } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, {
-  Easing,
-  interpolateColor,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SPILL_TRAVEL_MS } from '@/features/checkin/spillTiming';
 import { useMoodStore } from '@/store/useMoodStore';
 import { Chrome, MOOD_COLORS, Radius, Spacing, Typography } from '@/theme';
 
@@ -24,43 +20,56 @@ const TAB_LABEL: Record<string, string> = {
 };
 
 /**
- * Floating liquid-glass tab bar. The blur layer stays constant; a color
- * overlay cross-fades to the current mood's base color and holds it until
- * the mood changes again (per brief: navbar "changes to the mood pressed
- * until mood is changed again").
+ * Floating liquid-glass tab bar. Rather than an instant color cross-fade,
+ * the tint reveals left-to-right like liquid filling the bar — driven by
+ * the same spillRequest and SPILL_TRAVEL_MS as the traveling drop in
+ * PaintSpill, so the fill finishes exactly as the drop visually arrives.
+ * Holds the filled color until the next mood is logged.
  */
 export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const currentMood = useMoodStore((s) => s.currentMood);
+  const spillRequest = useMoodStore((s) => s.spillRequest);
 
+  const [barWidth, setBarWidth] = useState(0);
   const prevColorRef = useRef<string>(NEUTRAL_TINT);
-  const [colorPair, setColorPair] = useState<{ from: string; to: string }>({
+  const lastHandledId = useRef<number | null>(null);
+  const [fillColors, setFillColors] = useState<{ from: string; to: string }>({
     from: NEUTRAL_TINT,
     to: NEUTRAL_TINT,
   });
-  const progress = useSharedValue(1);
+  const fillProgress = useSharedValue(0);
 
   useEffect(() => {
-    const nextColor = currentMood ? MOOD_COLORS[currentMood].base : NEUTRAL_TINT;
-    if (nextColor === prevColorRef.current) return;
-    setColorPair({ from: prevColorRef.current, to: nextColor });
-    progress.value = 0;
-    progress.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
-    prevColorRef.current = nextColor;
-  }, [currentMood, progress]);
+    if (!spillRequest || spillRequest.id === lastHandledId.current) return;
+    lastHandledId.current = spillRequest.id;
 
-  const tintStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(progress.value, [0, 1], [colorPair.from, colorPair.to]),
+    const nextColor = MOOD_COLORS[spillRequest.mood].base;
+    setFillColors({ from: prevColorRef.current, to: nextColor });
+    fillProgress.value = 0;
+    fillProgress.value = withTiming(1, {
+      duration: SPILL_TRAVEL_MS,
+      easing: Easing.out(Easing.cubic),
+    });
+    prevColorRef.current = nextColor;
+  }, [spillRequest, fillProgress]);
+
+  const revealStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: (fillProgress.value - 1) * barWidth }],
   }));
+
+  const onBarLayout = (e: LayoutChangeEvent) => setBarWidth(e.nativeEvent.layout.width);
 
   return (
     <View
       pointerEvents="box-none"
       style={[styles.wrapper, { bottom: insets.bottom + Spacing.sm }]}
     >
-      <View style={styles.bar}>
+      <View style={styles.bar} onLayout={onBarLayout}>
         <BlurView intensity={48} tint="dark" style={StyleSheet.absoluteFill} />
-        <Animated.View style={[StyleSheet.absoluteFill, styles.tint, tintStyle]} />
+        <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.from }]} />
+        <Animated.View style={[StyleSheet.absoluteFill, revealStyle]}>
+          <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.to }]} />
+        </Animated.View>
         <View style={styles.edgeHighlight} pointerEvents="none" />
         <View style={styles.row}>
           {state.routes.map((route, index) => {
