@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LiquidFillLazy } from '@/components/LiquidFillLazy';
 import { SPILL_TRAVEL_MS } from '@/features/checkin/spillTiming';
 import { useMoodStore } from '@/store/useMoodStore';
 import { Chrome, MOOD_COLORS, Radius, Spacing, Typography } from '@/theme';
@@ -24,6 +25,7 @@ export const RAISED_GAP = 10;
 export const NAVBAR_CLEARANCE = RAISED_SIZE + RAISED_GAP + TAB_BAR_HEIGHT;
 const NEUTRAL_TINT = Chrome.surfaceElevated;
 const SIDE_PADDING = Spacing.lg;
+const TINT_OPACITY = 0.32;
 
 const TAB_LABEL: Record<string, string> = {
   index: 'Check-in',
@@ -75,13 +77,6 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
     prevColorRef.current = nextColor;
   }, [spillRequest, fillProgress]);
 
-  const pillRevealStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: (1 - fillProgress.value) * TAB_BAR_HEIGHT }],
-  }));
-  const raisedRevealStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: (1 - fillProgress.value) * RAISED_SIZE }],
-  }));
-
   const onBarLayout = (e: LayoutChangeEvent) => setBarWidth(e.nativeEvent.layout.width);
 
   const indexGlobalIndex = state.routes.findIndex((r) => r.name === 'index');
@@ -112,9 +107,14 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
         >
           <BlurView intensity={54} tint="dark" style={StyleSheet.absoluteFill} />
           <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.from }]} />
-          <Animated.View style={[StyleSheet.absoluteFill, raisedRevealStyle]}>
-            <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.to }]} />
-          </Animated.View>
+          <LiquidFillLazy
+            width={RAISED_SIZE}
+            height={RAISED_SIZE}
+            borderRadius={RAISED_SIZE / 2}
+            color={fillColors.to}
+            opacity={TINT_OPACITY}
+            progress={fillProgress}
+          />
           <View style={styles.raisedGlyph} />
         </Pressable>
       )}
@@ -122,9 +122,16 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
       <View style={styles.bar} onLayout={onBarLayout}>
         <BlurView intensity={48} tint="dark" style={StyleSheet.absoluteFill} />
         <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.from }]} />
-        <Animated.View style={[StyleSheet.absoluteFill, pillRevealStyle]}>
-          <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.to }]} />
-        </Animated.View>
+        {barWidth > 0 && (
+          <LiquidFillLazy
+            width={barWidth}
+            height={TAB_BAR_HEIGHT}
+            borderRadius={Radius.pill}
+            color={fillColors.to}
+            opacity={TINT_OPACITY}
+            progress={fillProgress}
+          />
+        )}
         <View style={styles.edgeHighlight} pointerEvents="none" />
         <View style={styles.sideRow}>
           {sideRoutes.map((route) => {
@@ -222,7 +229,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Chrome.borderStrong,
   },
-  tint: { opacity: 0.32 },
+  tint: { opacity: TINT_OPACITY },
   edgeHighlight: {
     position: 'absolute',
     top: 0,
