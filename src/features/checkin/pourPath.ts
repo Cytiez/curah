@@ -2,19 +2,29 @@ import { Skia, type SkPath } from '@shopify/react-native-skia';
 
 const SEGMENTS = 32;
 
+function smoothstep(t: number): number {
+  'worklet';
+  return t * t * (3 - 2 * t);
+}
+
 /**
  * A liquid ribbon (not a stroked line) along a sagging quadratic-bezier arc
  * from the tapped mood's position to the navbar — gravity-poured, not a
- * straight/thrown line. Built as a filled, variable-width, wobbly shape
- * whose edges are smoothed through quad-through-midpoint curves (not
- * straight lineTo segments) so it reads as a soft liquid surface instead of
- * a faceted marker stroke.
+ * straight/thrown line. Built as a filled, wobbly shape whose edges are
+ * smoothed through quad-through-midpoint curves (not straight lineTo
+ * segments) so it reads as a soft liquid surface instead of a faceted
+ * marker stroke.
+ *
+ * Width tapers from `originWidth` (matching the tapped blob, so the tail
+ * fully covers it) down to `targetWidth` (matching the navbar's raised
+ * button, so the head doesn't float wider than the thing it's pouring
+ * into) — big at the source, shrinking toward the destination.
  *
  * `start`/`end` (0..1) select the currently-visible portion of the full arc,
  * matching PourStream's timeline (0→1 pours, 1→2 drains by advancing start).
- * The rounded droplet head is a separate shape (see buildHeadCapPath) drawn
- * on top, rather than an extra contour on this path — merging it as a
- * second contour here risked opposite-winding cancellation with the ribbon,
+ * The rounded end caps are separate shapes (see buildHeadCapPath /
+ * buildTailCapPath) drawn on top, rather than extra contours on this path —
+ * merging them here risked opposite-winding cancellation with the ribbon,
  * carving a hole where the two overlapped.
  */
 export function buildLiquidStreamPath(
@@ -25,7 +35,8 @@ export function buildLiquidStreamPath(
   sag: number,
   start: number,
   end: number,
-  baseWidth: number,
+  originWidth: number,
+  targetWidth: number,
   wobblePhase: number,
 ): SkPath {
   'worklet';
@@ -56,12 +67,12 @@ export function buildLiquidStreamPath(
     const nx = -ty / tlen;
     const ny = tx / tlen;
 
-    const taper = 0.55 + 0.55 * localT;
+    const widthAt = originWidth + (targetWidth - originWidth) * smoothstep(localT);
     const wobble =
       1 +
       0.1 * Math.sin(localT * Math.PI * 2.6 + wobblePhase) +
       0.06 * Math.sin(localT * Math.PI * 4.4 - wobblePhase * 1.3);
-    const halfWidth = (baseWidth / 2) * taper * wobble;
+    const halfWidth = (widthAt / 2) * wobble;
 
     leftX.push(px + nx * halfWidth);
     leftY.push(py + ny * halfWidth);
@@ -92,11 +103,38 @@ export function buildLiquidStreamPath(
   return path;
 }
 
+function pointAndWidthAt(
+  originX: number,
+  originY: number,
+  targetX: number,
+  targetY: number,
+  sag: number,
+  t: number,
+  originWidth: number,
+  targetWidth: number,
+  wobblePhase: number,
+) {
+  'worklet';
+  const controlX = (originX + targetX) / 2;
+  const controlY = (originY + targetY) / 2 + sag;
+  const omt = 1 - t;
+  const px = omt * omt * originX + 2 * omt * t * controlX + t * t * targetX;
+  const py = omt * omt * originY + 2 * omt * t * controlY + t * t * targetY;
+  const widthAt = originWidth + (targetWidth - originWidth) * smoothstep(t);
+  const wobble =
+    1 +
+    0.1 * Math.sin(t * Math.PI * 2.6 + wobblePhase) +
+    0.06 * Math.sin(t * Math.PI * 4.4 - wobblePhase * 1.3);
+  return { x: px, y: py, halfWidth: (widthAt / 2) * wobble };
+}
+
 /**
  * The rounded droplet cap at the pour's leading edge (the end nearest the
  * target/navbar), drawn as its own filled circle on top of the ribbon so
  * they never fight over path winding direction — same solid color, no
- * stroke, so the seam between them is invisible.
+ * stroke, so the seam between them is invisible. Sized to match the
+ * ribbon's own tapered width at that point (shrinking toward the navbar),
+ * not a fixed size, so it never floats larger than what it's pouring into.
  */
 export function buildHeadCapPath(
   originX: number,
@@ -106,7 +144,8 @@ export function buildHeadCapPath(
   sag: number,
   start: number,
   end: number,
-  baseWidth: number,
+  originWidth: number,
+  targetWidth: number,
   wobblePhase: number,
 ): SkPath {
   'worklet';
@@ -114,22 +153,58 @@ export function buildHeadCapPath(
   if (end - start < 0.001) {
     return path;
   }
+  const { x, y, halfWidth } = pointAndWidthAt(
+    originX,
+    originY,
+    targetX,
+    targetY,
+    sag,
+    end,
+    originWidth,
+    targetWidth,
+    wobblePhase,
+  );
+  path.addCircle(x, y, halfWidth * 1.05);
+  return path;
+}
 
-  const controlX = (originX + targetX) / 2;
-  const controlY = (originY + targetY) / 2 + sag;
-
-  const t = end;
-  const omt = 1 - t;
-  const px = omt * omt * originX + 2 * omt * t * controlX + t * t * targetX;
-  const py = omt * omt * originY + 2 * omt * t * controlY + t * t * targetY;
-
-  const taper = 0.55 + 0.55 * 1;
-  const wobble =
-    1 +
-    0.1 * Math.sin(Math.PI * 2.6 + wobblePhase) +
-    0.06 * Math.sin(Math.PI * 4.4 - wobblePhase * 1.3);
-  const halfWidth = (baseWidth / 2) * taper * wobble;
-
-  path.addCircle(px, py, halfWidth * 1.05);
+/**
+ * The rounded cap at the pour's trailing edge (the end anchored at the
+ * tapped mood blob), drawn the same way as the head cap. Only visible while
+ * the tail is still anchored at the origin (before the drain phase starts
+ * pulling it away) — this is what makes an off-center tap fully "close" the
+ * gap between the pressed spot and the blob's real shape: this cap is
+ * always centered on the blob's true measured center (passed in as
+ * originX/Y by the caller) regardless of where within the blob was tapped.
+ */
+export function buildTailCapPath(
+  originX: number,
+  originY: number,
+  targetX: number,
+  targetY: number,
+  sag: number,
+  start: number,
+  end: number,
+  originWidth: number,
+  targetWidth: number,
+  wobblePhase: number,
+): SkPath {
+  'worklet';
+  const path = Skia.Path.Make();
+  if (end - start < 0.001 || start > 0.001) {
+    return path;
+  }
+  const { x, y, halfWidth } = pointAndWidthAt(
+    originX,
+    originY,
+    targetX,
+    targetY,
+    sag,
+    0,
+    originWidth,
+    targetWidth,
+    wobblePhase,
+  );
+  path.addCircle(x, y, halfWidth * 1.02);
   return path;
 }

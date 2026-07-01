@@ -79,7 +79,8 @@ export function PaintSpillOverlay() {
         originY={anchor.originY}
         targetX={targetX}
         targetY={targetY}
-        streamWidth={anchor.size}
+        originWidth={anchor.size}
+        targetWidth={RAISED_SIZE}
         color={anchor.color}
         progress={progress}
       />

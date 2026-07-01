@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
+import type { LayoutChangeEvent, View } from 'react-native';
 import { Pressable, StyleSheet } from 'react-native';
 import Animated, {
   Easing,
@@ -61,6 +61,10 @@ export function MoodBlob({
   const onWrapperLayout = (e: LayoutChangeEvent) => {
     renderedSizeRef.current = e.nativeEvent.layout.width;
   };
+  // The pour must originate from the blob's actual center, not wherever the
+  // finger landed — an off-center tap on the raw touch event's pageX/pageY
+  // used to leave a visible gap between the blob and the stream's tail.
+  const wrapperRef = useRef<View>(null);
 
   useEffect(() => {
     const duration = 3400 + index * 300;
@@ -100,6 +104,7 @@ export function MoodBlob({
 
   return (
     <Animated.View
+      ref={wrapperRef}
       style={[styles.wrapper, { width: `${(size / designWidth) * 100}%` }, wrapperStyle]}
       onLayout={onWrapperLayout}
     >
@@ -112,9 +117,14 @@ export function MoodBlob({
         onPressOut={() => {
           pressed.value = withTiming(0, { duration: 200 });
         }}
-        onPress={(e: GestureResponderEvent) => {
-          const { pageX, pageY } = e.nativeEvent;
-          onPress(mood, { pageX, pageY, size: renderedSizeRef.current });
+        onPress={() => {
+          wrapperRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
+            onPress(mood, {
+              pageX: pageX + width / 2,
+              pageY: pageY + height / 2,
+              size: width || renderedSizeRef.current,
+            });
+          });
         }}
         style={styles.pressable}
       >
