@@ -1,23 +1,15 @@
 import { Tabs } from 'expo-router';
 
+import { GlassTabBar } from '@/components/GlassTabBar';
 import { Chrome } from '@/theme';
 
-/**
- * Tab layout. This uses the default Tabs bar for now; it is replaced by the
- * custom liquid-glass tab bar (mood-tinted) in a later step.
- */
 export default function TabsLayout() {
   return (
     <Tabs
+      tabBar={(props) => <GlassTabBar {...props} />}
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: Chrome.background },
-        tabBarStyle: {
-          backgroundColor: Chrome.surface,
-          borderTopColor: Chrome.border,
-        },
-        tabBarActiveTintColor: Chrome.text,
-        tabBarInactiveTintColor: Chrome.textMuted,
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Check-in' }} />
