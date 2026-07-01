@@ -1,22 +1,25 @@
-import * as Haptics from 'expo-haptics';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_HEIGHT } from '@/components/GlassTabBar';
 import { RecapGlassLazy } from '@/features/recap/RecapGlassLazy';
 import { useMoodShares } from '@/store/useMoodStore';
-import { Chrome, Radius, Spacing, Typography } from '@/theme';
+import { Chrome, Spacing, Typography } from '@/theme';
 
 export default function RecapScreen() {
   const insets = useSafeAreaInsets();
   const shares = useMoodShares();
   const [replayKey, setReplayKey] = useState(0);
 
-  const handleReplay = useCallback(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setReplayKey((k) => k + 1);
-  }, []);
+  // Replays the settle animation every time this tab gains focus (including
+  // the first time), not just once on mount — no manual "Lihat Ulang" needed.
+  useFocusEffect(
+    useCallback(() => {
+      setReplayKey((k) => k + 1);
+    }, []),
+  );
 
   return (
     <View
@@ -35,10 +38,6 @@ export default function RecapScreen() {
           <RecapGlassLazy shares={shares} replayKey={replayKey} />
         </View>
       </View>
-
-      <Pressable onPress={handleReplay} style={styles.replayButton} accessibilityRole="button">
-        <Text style={styles.replayLabel}>Lihat Ulang</Text>
-      </Pressable>
     </View>
   );
 }
@@ -70,20 +69,5 @@ const styles = StyleSheet.create({
     width: '82%',
     maxWidth: 300,
     aspectRatio: 0.72,
-  },
-  replayButton: {
-    alignSelf: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.pill,
-    backgroundColor: Chrome.surfaceElevated,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Chrome.border,
-    marginTop: Spacing.lg,
-  },
-  replayLabel: {
-    ...Typography.body,
-    color: Chrome.text,
-    fontWeight: '600',
   },
 });
