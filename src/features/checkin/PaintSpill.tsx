@@ -35,6 +35,7 @@ export function PaintSpillOverlay() {
   const [anchor, setAnchor] = useState({
     originX: 0,
     originY: 0,
+    size: 60,
     color: MOOD_COLORS.netral.base,
   });
   // 0..2 timeline: 0->1 the stream pours/extends, 1->2 it drains away.
@@ -51,6 +52,7 @@ export function PaintSpillOverlay() {
     setAnchor({
       originX: spillRequest.originX,
       originY: spillRequest.originY,
+      size: spillRequest.originSize,
       color: MOOD_COLORS[spillRequest.mood].base,
     });
 
@@ -77,6 +79,7 @@ export function PaintSpillOverlay() {
         originY={anchor.originY}
         targetX={targetX}
         targetY={targetY}
+        streamWidth={anchor.size}
         color={anchor.color}
         progress={progress}
       />

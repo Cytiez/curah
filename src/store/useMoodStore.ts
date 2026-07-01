@@ -10,6 +10,8 @@ export interface SpillRequest {
   mood: Mood;
   originX: number;
   originY: number;
+  /** Diameter (px) of the tapped blob, so the pour stream can match its width. */
+  originSize: number;
 }
 
 interface MoodState {
@@ -20,7 +22,7 @@ interface MoodState {
   sharingDefault: Visibility;
   /** Ephemeral trigger for the paint-spill overlay; cleared once it finishes playing. */
   spillRequest: SpillRequest | null;
-  addLog: (mood: Mood, origin: { x: number; y: number }) => void;
+  addLog: (mood: Mood, origin: { x: number; y: number; size: number }) => void;
   clearSpillRequest: () => void;
   setSharingDefault: (visibility: Visibility) => void;
 }
@@ -43,7 +45,13 @@ export const useMoodStore = create<MoodState>((set, get) => ({
     set((state) => ({
       logs: [...state.logs, log],
       currentMood: mood,
-      spillRequest: { id: idCounter, mood, originX: origin.x, originY: origin.y },
+      spillRequest: {
+        id: idCounter,
+        mood,
+        originX: origin.x,
+        originY: origin.y,
+        originSize: origin.size,
+      },
     }));
   },
   clearSpillRequest: () => set({ spillRequest: null }),

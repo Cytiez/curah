@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
-import type { GestureResponderEvent } from 'react-native';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -54,6 +54,13 @@ export function MoodBlob({
   const pressed = useSharedValue(0);
   const posX = useSharedValue(x);
   const posY = useSharedValue(y);
+  // Design-space `size` scales down/up to fit the screen; the pour stream
+  // needs the blob's REAL rendered pixel diameter to match its width, so
+  // measure it rather than reporting the design-space number.
+  const renderedSizeRef = useRef(size);
+  const onWrapperLayout = (e: LayoutChangeEvent) => {
+    renderedSizeRef.current = e.nativeEvent.layout.width;
+  };
 
   useEffect(() => {
     const duration = 3400 + index * 300;
@@ -94,6 +101,7 @@ export function MoodBlob({
   return (
     <Animated.View
       style={[styles.wrapper, { width: `${(size / designWidth) * 100}%` }, wrapperStyle]}
+      onLayout={onWrapperLayout}
     >
       <Pressable
         accessibilityRole="button"
@@ -106,7 +114,7 @@ export function MoodBlob({
         }}
         onPress={(e: GestureResponderEvent) => {
           const { pageX, pageY } = e.nativeEvent;
-          onPress(mood, { pageX, pageY, size });
+          onPress(mood, { pageX, pageY, size: renderedSizeRef.current });
         }}
         style={styles.pressable}
       >

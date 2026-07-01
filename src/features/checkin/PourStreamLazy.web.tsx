@@ -8,6 +8,7 @@ interface PourStreamLazyProps {
   originY: number;
   targetX: number;
   targetY: number;
+  streamWidth: number;
   color: string;
   progress: SharedValue<number>;
 }
