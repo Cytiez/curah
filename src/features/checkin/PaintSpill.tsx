@@ -3,7 +3,7 @@ import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Easing, runOnJS, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { RAISED_OVERLAP, RAISED_SIZE, TAB_BAR_HEIGHT } from '@/components/GlassTabBar';
+import { TAB_BAR_HEIGHT } from '@/components/GlassTabBar';
 import { useMoodStore } from '@/store/useMoodStore';
 import { MOOD_COLORS, Spacing } from '@/theme';
 import { PourStreamLazy } from './PourStreamLazy';
@@ -42,8 +42,7 @@ export function PaintSpillOverlay() {
   const progress = useSharedValue(0);
 
   const targetX = width / 2;
-  const targetY =
-    height - insets.bottom - Spacing.sm - TAB_BAR_HEIGHT + RAISED_OVERLAP - RAISED_SIZE / 2;
+  const targetY = height - insets.bottom - Spacing.sm - TAB_BAR_HEIGHT / 2;
 
   useEffect(() => {
     if (!spillRequest || spillRequest.id === lastHandledId.current) return;
@@ -80,7 +79,7 @@ export function PaintSpillOverlay() {
         targetX={targetX}
         targetY={targetY}
         originWidth={anchor.size}
-        targetWidth={RAISED_SIZE}
+        targetWidth={TAB_BAR_HEIGHT}
         color={anchor.color}
         progress={progress}
       />
