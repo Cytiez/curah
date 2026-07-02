@@ -13,19 +13,23 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LiquidFillLazy } from '@/components/LiquidFillLazy';
+import { NavbarGlassOverlayLazy } from '@/components/NavbarGlassOverlayLazy';
 import { SPILL_TRAVEL_MS } from '@/features/checkin/spillTiming';
 import { useMoodStore } from '@/store/useMoodStore';
 import { Chrome, MOOD_COLORS, Radius, Spacing, Typography } from '@/theme';
 
 export const TAB_BAR_HEIGHT = 64;
 export const RAISED_SIZE = 60;
-export const RAISED_GAP = 10;
-/** Total floating-nav footprint (raised button + gap + pill) screens should
- * pad their bottom content by, so nothing sits under the detached button. */
-export const NAVBAR_CLEARANCE = RAISED_SIZE + RAISED_GAP + TAB_BAR_HEIGHT;
+/** How far the raised button's bottom dips into the pill, so the two read
+ * as one merged silhouette instead of a gap-separated floating piece. */
+export const RAISED_OVERLAP = 20;
+/** Total floating-nav footprint (raised button + pill, minus their overlap)
+ * screens should pad their bottom content by. */
+export const NAVBAR_CLEARANCE = RAISED_SIZE + TAB_BAR_HEIGHT - RAISED_OVERLAP;
 const NEUTRAL_TINT = Chrome.surfaceElevated;
 const SIDE_PADDING = Spacing.lg;
-const TINT_OPACITY = 0.32;
+const TINT_OPACITY = 0.22;
+const BLUR_INTENSITY = 72;
 
 const TAB_LABEL: Record<string, string> = {
   index: 'Check-in',
@@ -40,15 +44,17 @@ interface FillColors {
 
 /**
  * Floating liquid-glass tab bar: a pill (Recap + Circle) with the Check-in
- * button as its own DETACHED floating circle above it, not merged into one
- * shape. Earlier attempts tried a true boolean-unioned Skia shape ("kayak
- * union") but that meant losing real backdrop blur (Skia can't be masked by
- * expo-blur) and looked worse in practice. Checked against real iOS 26
- * guidance in the meantime: Apple's own floating-pill tab bar keeps its
- * primary action button as a separate detached glass piece next to/above
- * the bar rather than merging it in — so this detached layout isn't just a
- * fallback, it's the proven pattern. Both pieces share the same
- * spillRequest-driven fill, revealing bottom-to-top in sync.
+ * button as a raised circle overlapping into its top edge, read as one
+ * merged silhouette. An earlier attempt tried building the whole shape (fill
+ * + blur) in Skia, which meant losing real backdrop blur — expo-blur's
+ * native BlurView can't be masked to an arbitrary Skia path, only to a
+ * simple rect/rounded-rect via View's own overflow+borderRadius. This
+ * version keeps two real BlurView pieces (each still simply
+ * rect/circle-clipped) and only draws the pill+bump's true union silhouette
+ * in Skia as a thin decorative overlay on top (see NavbarGlassOverlay) — a
+ * stroke tracing the merged outline plus a soft light sheen — so the merge
+ * is purely cosmetic and the blur stays real underneath it. Both pieces
+ * share the same spillRequest-driven fill, revealing bottom-to-top in sync.
  */
 export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
@@ -91,65 +97,87 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
     }
   };
 
+  const stackHeight = RAISED_SIZE + TAB_BAR_HEIGHT - RAISED_OVERLAP;
+
   return (
     <View
       pointerEvents="box-none"
       style={[styles.wrapper, { bottom: insets.bottom + Spacing.sm }]}
     >
-      {indexRoute && (
-        <Pressable
-          onPress={makeOnPress(indexRoute.key, indexRoute.name, isIndexFocused)}
-          accessibilityRole="button"
-          accessibilityState={isIndexFocused ? { selected: true } : {}}
-          accessibilityLabel={TAB_LABEL.index}
-          style={[styles.raisedButton, isIndexFocused && styles.raisedButtonActive]}
-          hitSlop={6}
-        >
-          <BlurView intensity={54} tint="dark" style={StyleSheet.absoluteFill} />
-          <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.from }]} />
-          <LiquidFillLazy
-            width={RAISED_SIZE}
-            height={RAISED_SIZE}
-            borderRadius={RAISED_SIZE / 2}
-            color={fillColors.to}
-            opacity={TINT_OPACITY}
-            progress={fillProgress}
-          />
-          <View style={styles.raisedGlyph} />
-        </Pressable>
-      )}
+      <View style={styles.stack}>
+        {indexRoute && (
+          <Pressable
+            onPress={makeOnPress(indexRoute.key, indexRoute.name, isIndexFocused)}
+            accessibilityRole="button"
+            accessibilityState={isIndexFocused ? { selected: true } : {}}
+            accessibilityLabel={TAB_LABEL.index}
+            style={styles.raisedButtonHit}
+            hitSlop={{ top: 6, left: 6, right: 6, bottom: 6 + RAISED_OVERLAP }}
+          >
+            {/* Only the top (non-overlapping) slice of this circle is
+             * visible — see raisedButtonHit below. Its full RAISED_SIZE
+             * circle still renders here so the visible cap is a true arc,
+             * not a squashed oval; the part that would dip into the pill
+             * is clipped away by the shorter wrapper instead of being
+             * drawn, so its blur never stacks with the pill's own blur. */}
+            <View style={styles.raisedButton}>
+              <BlurView intensity={BLUR_INTENSITY} tint="dark" style={StyleSheet.absoluteFill} />
+              <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.from }]} />
+              <LiquidFillLazy
+                width={RAISED_SIZE}
+                height={RAISED_SIZE}
+                borderRadius={RAISED_SIZE / 2}
+                color={fillColors.to}
+                opacity={TINT_OPACITY}
+                progress={fillProgress}
+              />
+              <View style={styles.raisedGlyph} />
+            </View>
+          </Pressable>
+        )}
 
-      <View style={styles.bar} onLayout={onBarLayout}>
-        <BlurView intensity={48} tint="dark" style={StyleSheet.absoluteFill} />
-        <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.from }]} />
+        <View style={styles.bar} onLayout={onBarLayout}>
+          <BlurView intensity={BLUR_INTENSITY} tint="dark" style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, styles.tint, { backgroundColor: fillColors.from }]} />
+          {barWidth > 0 && (
+            <LiquidFillLazy
+              width={barWidth}
+              height={TAB_BAR_HEIGHT}
+              borderRadius={Radius.pill}
+              color={fillColors.to}
+              opacity={TINT_OPACITY}
+              progress={fillProgress}
+            />
+          )}
+          <View style={styles.sideRow}>
+            {sideRoutes.map((route) => {
+              const { options } = descriptors[route.key];
+              const isFocused = state.routes[state.index].key === route.key;
+              const label = TAB_LABEL[route.name] ?? route.name;
+              return (
+                <SideTabButton
+                  key={route.key}
+                  routeName={route.name}
+                  isFocused={isFocused}
+                  label={label}
+                  accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
+                  onPress={makeOnPress(route.key, route.name, isFocused)}
+                />
+              );
+            })}
+          </View>
+        </View>
+
         {barWidth > 0 && (
-          <LiquidFillLazy
+          <NavbarGlassOverlayLazy
             width={barWidth}
-            height={TAB_BAR_HEIGHT}
-            borderRadius={Radius.pill}
-            color={fillColors.to}
-            opacity={TINT_OPACITY}
-            progress={fillProgress}
+            height={stackHeight}
+            barWidth={barWidth}
+            barHeight={TAB_BAR_HEIGHT}
+            barRadius={Radius.pill}
+            bumpSize={RAISED_SIZE}
           />
         )}
-        <View style={styles.edgeHighlight} pointerEvents="none" />
-        <View style={styles.sideRow}>
-          {sideRoutes.map((route) => {
-            const { options } = descriptors[route.key];
-            const isFocused = state.routes[state.index].key === route.key;
-            const label = TAB_LABEL[route.name] ?? route.name;
-            return (
-              <SideTabButton
-                key={route.key}
-                routeName={route.name}
-                isFocused={isFocused}
-                label={label}
-                accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
-                onPress={makeOnPress(route.key, route.name, isFocused)}
-              />
-            );
-          })}
-        </View>
       </View>
     </View>
   );
@@ -220,24 +248,19 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
   },
-  bar: {
+  stack: {
+    position: 'relative',
+    alignItems: 'center',
     width: '78%',
     maxWidth: 320,
+  },
+  bar: {
+    width: '100%',
     height: TAB_BAR_HEIGHT,
     borderRadius: Radius.pill,
     overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Chrome.borderStrong,
   },
   tint: { opacity: TINT_OPACITY },
-  edgeHighlight: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
   sideRow: {
     flex: 1,
     flexDirection: 'row',
@@ -284,19 +307,23 @@ const styles = StyleSheet.create({
   glyphDotOverlap: {
     left: 8,
   },
+  // Plain-rect clip: only the top (RAISED_SIZE - RAISED_OVERLAP) slice of
+  // the full circle below is visible. Deliberately NOT rounded — a simple
+  // rect clip avoids stacking this circle's own blur with the pill's where
+  // they'd otherwise overlap (two real BlurViews compounding their blur
+  // over the same pixels reads as a visible seam, worse than no merge).
+  raisedButtonHit: {
+    width: RAISED_SIZE,
+    height: RAISED_SIZE - RAISED_OVERLAP,
+    overflow: 'hidden',
+  },
   raisedButton: {
     width: RAISED_SIZE,
     height: RAISED_SIZE,
     borderRadius: RAISED_SIZE / 2,
     overflow: 'hidden',
-    marginBottom: RAISED_GAP,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Chrome.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  raisedButtonActive: {
-    borderColor: Chrome.text,
   },
   raisedGlyph: {
     width: 20,
