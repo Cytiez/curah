@@ -77,11 +77,18 @@ export function RecapGlass({ shares, replayKey }: RecapGlassProps) {
 
   const total = MOODS.reduce((sum, mood) => sum + shares[mood], 0);
   const shareRatios = MOODS.map((mood) => (total > 0 ? shares[mood] / total : 0));
+  // Only the topmost non-empty band is the exposed liquid surface, so
+  // that's the only one that should carry the animated wave.
+  const topIndex = shareRatios.reduce(
+    (top, ratio, index) => (ratio > 0 ? index : top),
+    -1,
+  );
 
   const glassPath = useDerivedValue(() => buildGlassPath(size.value.width, size.value.height));
 
-  const layerPaths = MOODS.map((_, index) =>
-    useDerivedValue(() => {
+  const layerPaths = MOODS.map((_, index) => {
+    const isTop = index === topIndex;
+    return useDerivedValue(() => {
       const w = size.value.width;
       const h = size.value.height;
       let bottomAcc = 0;
@@ -91,9 +98,9 @@ export function RecapGlass({ shares, replayKey }: RecapGlassProps) {
       const myHeight = shareRatios[index] * h * progresses[index].value;
       const bottomY = h - bottomAcc;
       const topY = bottomY - myHeight;
-      return buildLiquidLayerPath(w, topY, bottomY, wavePhase.value);
-    }),
-  );
+      return buildLiquidLayerPath(w, topY, bottomY, isTop ? wavePhase.value : 0, isTop ? 5 : 0);
+    });
+  });
 
   return (
     <Canvas style={StyleSheet.absoluteFill} onSize={size}>

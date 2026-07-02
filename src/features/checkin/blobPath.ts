@@ -25,7 +25,7 @@ export function buildBlobPath(
     const phase = i * 1.31 + seed;
     const wobble =
       Math.sin(t * Math.PI * 2 + phase) * 0.09 +
-      Math.sin(t * Math.PI * 2 * 1.7 + phase * 1.9) * 0.045;
+      Math.sin(t * Math.PI * 2 * 2 + phase * 1.9) * 0.045;
     const r = baseRadius * (1 + wobble);
     points.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
   }

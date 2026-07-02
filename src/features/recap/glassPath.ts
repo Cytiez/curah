@@ -32,13 +32,13 @@ export function buildLiquidLayerPath(
   topY: number,
   bottomY: number,
   wavePhase: number,
+  waveAmplitude: number = 5,
 ): SkPath {
   'worklet';
   const path = Skia.Path.Make();
   if (bottomY <= topY) {
     return path;
   }
-  const waveAmplitude = 5;
   const waveFrequency = 1.6;
   const segments = 20;
 
