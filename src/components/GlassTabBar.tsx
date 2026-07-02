@@ -19,10 +19,12 @@ import { useMoodStore } from '@/store/useMoodStore';
 import { Chrome, MOOD_COLORS, Radius, Spacing, Typography } from '@/theme';
 
 export const TAB_BAR_HEIGHT = 64;
-export const RAISED_SIZE = 60;
+/** Deliberately much bigger than TAB_BAR_HEIGHT/the side tabs — this is the
+ * primary action (Check-in), everything else in the bar is secondary. */
+export const RAISED_SIZE = 84;
 /** How far the raised button's bottom dips into the pill, so the two read
  * as one merged silhouette instead of a gap-separated floating piece. */
-export const RAISED_OVERLAP = 20;
+export const RAISED_OVERLAP = 28;
 /** Total floating-nav footprint (raised button + pill, minus their overlap)
  * screens should pad their bottom content by. */
 export const NAVBAR_CLEARANCE = RAISED_SIZE + TAB_BAR_HEIGHT - RAISED_OVERLAP;
@@ -326,9 +328,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   raisedGlyph: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: Chrome.text,
   },
 });
